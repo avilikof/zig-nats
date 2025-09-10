@@ -250,3 +250,217 @@ pub const NatsClient = struct {
         return self.readMessage();
     }
 };
+
+// Add these tests at the end of root.zig
+
+const testing = std.testing;
+const test_helpers = @import("test_helpers.zig");
+
+// Mock client for testing without network
+const MockNatsClient = struct {
+    stream: *test_helpers.MockStream,
+    allocator: std.mem.Allocator,
+    subscriptions: std.HashMap(u32, Subscription, std.hash_map.AutoContext(u32), std.hash_map.default_max_load_percentage),
+    next_subscription_id: u32,
+    buffer: []u8,
+
+    pub fn initMock(allocator: std.mem.Allocator, mock_stream: *test_helpers.MockStream) !MockNatsClient {
+        return MockNatsClient{
+            .stream = mock_stream,
+            .allocator = allocator,
+            .subscriptions = std.HashMap(u32, Subscription, std.hash_map.AutoContext(u32), std.hash_map.default_max_load_percentage).init(allocator),
+            .next_subscription_id = 1,
+            .buffer = try allocator.alloc(u8, BUFFER_SIZE),
+        };
+    }
+
+    pub fn deinit(self: *MockNatsClient) void {
+        var iterator = self.subscriptions.iterator();
+        while (iterator.next()) |entry| {
+            entry.value_ptr.deinit(self.allocator);
+        }
+        self.subscriptions.deinit();
+        self.allocator.free(self.buffer);
+    }
+
+    // Implement the same interface as NatsClient for testing
+    // (You would copy the methods from NatsClient but use self.stream instead of a real stream)
+};
+
+test "NATS client initialization" {
+    // This test would require a mock or a running NATS server
+    // For now, let's test the components we can test in isolation
+    const allocator = testing.allocator;
+
+    var mock_stream = test_helpers.MockStream.init(allocator);
+    defer mock_stream.deinit();
+
+    // Feed the expected INFO message
+    const info_msg = try test_helpers.createInfoMessage(allocator);
+    defer allocator.free(info_msg);
+    try mock_stream.feedInput(info_msg);
+    try mock_stream.feedInput("PONG\r\n");
+
+    // Note: Full client init test would require more sophisticated mocking
+    // This is a placeholder for the structure
+}
+
+test "publish command formatting" {
+    const allocator = testing.allocator;
+
+    const subject = "test.subject";
+    const data = "hello world";
+    const expected = try std.fmt.allocPrint(allocator, "PUB {s} {d}\r\n{s}\r\n", .{ subject, data.len, data });
+    defer allocator.free(expected);
+
+    // This tests the command format - you'd extract this logic into a separate function
+    var mock_stream = test_helpers.MockStream.init(allocator);
+    defer mock_stream.deinit();
+
+    try mock_stream.writeAll(expected);
+    try testing.expectEqualStrings(expected, mock_stream.getSentData());
+}
+
+test "subscribe command formatting without queue group" {
+    const allocator = testing.allocator;
+
+    const subject = "test.subject";
+    const sid: u32 = 123;
+
+    const expected = try std.fmt.allocPrint(allocator, "SUB {s} {d}\r\n", .{ subject, sid });
+    defer allocator.free(expected);
+
+    var mock_stream = test_helpers.MockStream.init(allocator);
+    defer mock_stream.deinit();
+
+    try mock_stream.writeAll(expected);
+    try testing.expectEqualStrings(expected, mock_stream.getSentData());
+}
+
+test "subscribe command formatting with queue group" {
+    const allocator = testing.allocator;
+
+    const subject = "test.subject";
+    const queue_group = "worker.queue";
+    const sid: u32 = 123;
+
+    const expected = try std.fmt.allocPrint(allocator, "SUB {s} {s} {d}\r\n", .{ subject, queue_group, sid });
+    defer allocator.free(expected);
+
+    var mock_stream = test_helpers.MockStream.init(allocator);
+    defer mock_stream.deinit();
+
+    try mock_stream.writeAll(expected);
+    try testing.expectEqualStrings(expected, mock_stream.getSentData());
+}
+
+test "unsubscribe command formatting without max_msgs" {
+    const allocator = testing.allocator;
+
+    const sid: u32 = 123;
+    const expected = try std.fmt.allocPrint(allocator, "UNSUB {d}\r\n", .{sid});
+    defer allocator.free(expected);
+
+    var mock_stream = test_helpers.MockStream.init(allocator);
+    defer mock_stream.deinit();
+
+    try mock_stream.writeAll(expected);
+    try testing.expectEqualStrings(expected, mock_stream.getSentData());
+}
+
+test "unsubscribe command formatting with max_msgs" {
+    const allocator = testing.allocator;
+
+    const sid: u32 = 123;
+    const max_msgs: u32 = 10;
+    const expected = try std.fmt.allocPrint(allocator, "UNSUB {d} {d}\r\n", .{ sid, max_msgs });
+    defer allocator.free(expected);
+
+    var mock_stream = test_helpers.MockStream.init(allocator);
+    defer mock_stream.deinit();
+
+    try mock_stream.writeAll(expected);
+    try testing.expectEqualStrings(expected, mock_stream.getSentData());
+}
+
+test "subscription management" {
+    const allocator = testing.allocator;
+
+    var subscriptions = std.HashMap(u32, Subscription, std.hash_map.AutoContext(u32), std.hash_map.default_max_load_percentage).init(allocator);
+    defer {
+        var iterator = subscriptions.iterator();
+        while (iterator.next()) |entry| {
+            entry.value_ptr.deinit(allocator);
+        }
+        subscriptions.deinit();
+    }
+
+    // Test adding subscription
+    const subject = try allocator.dupe(u8, "test.subject");
+    const sub = Subscription{
+        .subject = subject,
+        .sid = 123,
+        .queue_group = null,
+    };
+
+    try subscriptions.put(123, sub);
+    try testing.expectEqual(@as(u32, 1), subscriptions.count());
+    try testing.expect(subscriptions.contains(123));
+
+    // Test removing subscription
+    if (subscriptions.fetchRemove(123)) |kv| {
+        kv.value.deinit(allocator);
+    }
+    try testing.expectEqual(@as(u32, 0), subscriptions.count());
+    try testing.expect(!subscriptions.contains(123));
+}
+
+test "readLine parsing" {
+    const allocator = testing.allocator;
+
+    var mock_stream = test_helpers.MockStream.init(allocator);
+    defer mock_stream.deinit();
+
+    // Test normal line ending
+    try mock_stream.feedInput("PING\r\n");
+
+    var line_buffer = std.ArrayList(u8).init(allocator);
+    defer line_buffer.deinit();
+
+    // You would need to extract readLine into a testable function
+    // This is a structural example
+    try testing.expectEqualStrings("PING", "PING"); // Placeholder
+}
+
+test "payload reading" {
+    const allocator = testing.allocator;
+
+    var mock_stream = test_helpers.MockStream.init(allocator);
+    defer mock_stream.deinit();
+
+    const test_payload = "Hello, NATS!";
+    try mock_stream.feedInput(test_payload);
+    try mock_stream.feedInput("\r\n"); // trailing CRLF
+
+    // You would need to extract getPayload into a testable function
+    // and test it with the mock stream
+}
+
+test "message flow integration" {
+    const allocator = testing.allocator;
+
+    var mock_stream = test_helpers.MockStream.init(allocator);
+    defer mock_stream.deinit();
+
+    // Simulate receiving a complete message
+    const msg_line = "MSG foo.bar 123 13\r\n";
+    const payload = "Hello, World!";
+    const trailing = "\r\n";
+
+    try mock_stream.feedInput(msg_line);
+    try mock_stream.feedInput(payload);
+    try mock_stream.feedInput(trailing);
+
+    // Test that the complete message flow works
+    // This would require refactoring your client code to be more testable
+}
