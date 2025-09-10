@@ -1,0 +1,12 @@
+.{
+    .name = .nats_zig,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.15.1", // Specify minimum Zig version
+    .dependencies = .{},
+    .paths = .{
+        "src",
+        "build.zig",
+        "build.zig.zon",
+    },
+    .fingerprint = 0xea2291e837ec5d6,
+}
