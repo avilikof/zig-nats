@@ -1,14 +1,12 @@
 .{
-    .name = "nats-zig",
+    .name = .nats_zig,
     .version = "0.1.0",
     .minimum_zig_version = "0.15.1", // Specify minimum Zig version
+    .dependencies = .{},
     .paths = .{
         "src",
-        "examples", // Include examples in package
         "build.zig",
         "build.zig.zon",
-        "README.md",
-        "LICENSE",
     },
-    .dependencies = .{},
+    .fingerprint = 0xea2291e837ec5d6,
 }

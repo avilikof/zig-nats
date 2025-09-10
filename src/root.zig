@@ -79,8 +79,6 @@ pub const NatsClient = struct {
         const sid = self.next_subscription_id;
         self.next_subscription_id += 1;
 
-        // var sub_cmd_buf: [256]u8 = undefined;
-        // var command = std.ArrayList(u8).init(self.allocator);
         const command_buff = try self.allocator.alloc(u8, 128);
         var command = std.ArrayList(u8).initBuffer(command_buff);
         defer command.deinit(self.allocator);
@@ -424,8 +422,9 @@ test "readLine parsing" {
     // Test normal line ending
     try mock_stream.feedInput("PING\r\n");
 
-    var line_buffer = std.ArrayList(u8).init(allocator);
-    defer line_buffer.deinit();
+    const command_buff = try allocator.alloc(u8, 128);
+    var line_buffer = std.ArrayList(u8).initBuffer(command_buff);
+    defer line_buffer.deinit(allocator);
 
     // You would need to extract readLine into a testable function
     // This is a structural example

@@ -9,21 +9,21 @@ pub const MockStream = struct {
 
     pub fn init(allocator: std.mem.Allocator) MockStream {
         return MockStream{
-            .read_buffer = std.ArrayList(u8).init(allocator),
-            .write_buffer = std.ArrayList(u8).init(allocator),
+            .read_buffer = std.ArrayList(u8){},
+            .write_buffer = std.ArrayList(u8){},
             .read_pos = 0,
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *MockStream) void {
-        self.read_buffer.deinit();
-        self.write_buffer.deinit();
+        self.read_buffer.deinit(self.allocator);
+        self.write_buffer.deinit(self.allocator);
     }
 
     // Add data that will be "received" from server
     pub fn feedInput(self: *MockStream, data: []const u8) !void {
-        try self.read_buffer.appendSlice(data);
+        try self.read_buffer.appendSlice(self.allocator, data);
     }
 
     // Get what was "sent" to server
@@ -47,7 +47,7 @@ pub const MockStream = struct {
     }
 
     pub fn writeAll(self: *MockStream, data: []const u8) !void {
-        try self.write_buffer.appendSlice(data);
+        try self.write_buffer.appendSlice(self.allocator, data);
     }
 
     pub fn close(self: *MockStream) void {
@@ -57,8 +57,8 @@ pub const MockStream = struct {
 
 // Helper to create standard NATS INFO message
 pub fn createInfoMessage(allocator: std.mem.Allocator) ![]u8 {
-    return try std.fmt.allocPrint(allocator,
+    return std.fmt.allocPrint(allocator,
         \\INFO {{"server_id":"test-server","server_name":"test","version":"2.9.0","proto":1,"go":"go1.19","host":"127.0.0.1","port":4222,"headers":true,"max_payload":1048576,"auth_required":false,"tls_required":false,"tls_verify":false}}
         \\
-    );
+    , .{});
 }
