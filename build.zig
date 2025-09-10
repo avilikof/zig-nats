@@ -17,5 +17,5 @@ pub fn build(b: *std.Build) void {
     });
 
     // Add the logger import to your module
-    nats_module.addImport("logger", logger_dep.module("logger"));
+    nats_module.addImport("logger", logger_dep.module("logger-zig"));
 }

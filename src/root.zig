@@ -2,7 +2,7 @@ const std = @import("std");
 const Subscription = @import("subscription.zig").Subscription;
 const NatsMessage = @import("message.zig").NatsMessage;
 const natsMessage = @import("message.zig");
-const logger = @import("logger.zig");
+const logger = @import("logger");
 
 // Nats Protocol Constants
 const PING_MSG = "PING\r\n";
