@@ -1,8 +1,13 @@
 .{
     .name = .nats_zig,
-    .version = "0.1.0",
+    .version = "0.1.1",
     .minimum_zig_version = "0.15.1", // Specify minimum Zig version
-    .dependencies = .{},
+    .dependencies = .{
+        .logger = .{
+            .url = "https://github.com/avilikof/zig-logger/archive/refs/tags/v0.0.1.tar.gz",
+            .hash = "logger-0.0.1-wTBMQdUaAAC6vq0T1xULsVKOBcPd-k-X7N1R0R4lS7oc",
+        },
+    },
     .paths = .{
         "src",
         "build.zig",
